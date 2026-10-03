@@ -1,0 +1,54 @@
+/* qr.kakkoi.dev design tokens. Fonts are loaded from the HTML. */
+
+:root {
+  /* colour */
+  --ink: #0B0B0C;
+  --paper: #FFFFFF;
+  --muted: #55555A;
+  --code-bg: #F2F2F0;
+  --hairline: #D6D6D3;
+  --dashed: #8A8A8F;
+  --accent: #FF4A2B; /* decorative only, never text on white */
+
+  /* QR ink presets */
+  --qr-black: #0B0B0C;
+  --qr-blue: #1E3BC8;
+  --qr-red: #B8301B;
+  --qr-green: #0D6444;
+
+  /* type */
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --fs-h1: clamp(52px, 8vw, 96px);
+  --fs-h2: 40px;
+  --fs-h3: 20px;
+  --fs-lead: 19px;
+  --fs-body: 15px;
+  --fs-label: 13px;
+  --fs-meta: 12px;
+  --fs-input: 18px;
+
+  /* shape & space */
+  --border: 1px solid var(--ink);
+  --radius: 0;
+  --container: 1280px;
+  --gutter: clamp(20px, 4vw, 32px);
+  --section-gap: clamp(56px, 8vw, 88px);
+  --tap: 44px;
+  --btn-h-primary: 56px;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --fs-h1: 52px;
+    --fs-h2: 32px;
+    --fs-h3: 18px;
+    --fs-body: 14px;
+    --fs-input: 16px; /* prevents iOS zoom */
+    --gutter: 20px;
+    --tap: 48px;
+    --btn-h-primary: 52px;
+  }
+}
+
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
