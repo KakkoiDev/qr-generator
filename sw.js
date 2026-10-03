@@ -1,40 +1,68 @@
-// Service worker: answers requests to ./svg and ./svg/ with a real
-// image/svg+xml response generated in the browser, and caches it so the same
-// URL is served instantly (and offline) next time.
+// Service worker.
+// - Requests for ./svg/?… that are NOT page loads (e.g. <img src>, fetch())
+//   get a real image/svg+xml response generated here, cached per URL.
+// - Page loads (including iframes) of ./svg/ get the HTML page as usual.
+// - App files are served network-first with a cache fallback, so the site
+//   keeps working offline.
 importScripts('vendor/qrcode.js', 'qr.js');
 
-var CACHE = 'qr-svg-v1';
-var MAX_ENTRIES = 300;
+var VERSION = 'v2';
+var SVG_CACHE = 'qr-svg-' + VERSION;
+var SHELL_CACHE = 'qr-shell-' + VERSION;
+var MAX_SVGS = 300;
+var SHELL = [
+  './',
+  'style.css',
+  'tokens.css',
+  'app.js',
+  'qr.js',
+  'vendor/qrcode.js',
+  'svg/',
+];
 
-self.addEventListener('install', function () {
-  self.skipWaiting();
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(SHELL_CACHE).then(function (cache) {
+      return Promise.all(SHELL.map(function (path) {
+        return cache.add(path).catch(function () {});
+      }));
+    }).then(function () { return self.skipWaiting(); })
+  );
 });
 
 self.addEventListener('activate', function (event) {
   event.waitUntil(
     caches.keys().then(function (keys) {
       return Promise.all(
-        keys.filter(function (k) { return k.indexOf('qr-svg-') === 0 && k !== CACHE; })
-          .map(function (k) { return caches.delete(k); })
+        keys.filter(function (k) {
+          return /^qr-(svg|shell)-/.test(k) && k !== SVG_CACHE && k !== SHELL_CACHE;
+        }).map(function (k) { return caches.delete(k); })
       );
     }).then(function () { return self.clients.claim(); })
   );
 });
 
 self.addEventListener('fetch', function (event) {
-  if (event.request.method !== 'GET') return;
-  var url = new URL(event.request.url);
-  var svgPath = new URL('svg', self.registration.scope).pathname;
+  var req = event.request;
+  if (req.method !== 'GET') return;
+  var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname !== svgPath && url.pathname !== svgPath + '/') return;
-  event.respondWith(respond(url, svgPath));
+
+  var svgPath = new URL('svg', self.registration.scope).pathname;
+  var isSvgRoute = url.pathname === svgPath || url.pathname === svgPath + '/';
+
+  if (isSvgRoute && req.mode !== 'navigate' && url.searchParams.get('t')) {
+    event.respondWith(svgResponse(url, svgPath));
+  } else {
+    event.respondWith(networkFirst(req));
+  }
 });
 
-function respond(url, svgPath) {
+function svgResponse(url, svgPath) {
   var opts = QR.parse(url.searchParams);
   var key = new URL(svgPath + '/?' + QR.query(opts), self.location.origin).href;
 
-  return caches.open(CACHE).then(function (cache) {
+  return caches.open(SVG_CACHE).then(function (cache) {
     return cache.match(key).then(function (hit) {
       if (hit) return hit;
 
@@ -42,7 +70,7 @@ function respond(url, svgPath) {
       try {
         body = QR.svg(opts);
       } catch (err) {
-        return new Response('Cannot encode: ' + (err && err.message || err), {
+        return new Response('Too long for a QR code — shorten the text.', {
           status: 400,
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
         });
@@ -61,11 +89,29 @@ function respond(url, svgPath) {
   });
 }
 
-// Drop the oldest entries once the cache grows past MAX_ENTRIES.
+// Drop the oldest entries once the cache grows past MAX_SVGS.
 function trim(cache) {
   return cache.keys().then(function (keys) {
-    var extra = keys.length - MAX_ENTRIES;
+    var extra = keys.length - MAX_SVGS;
     if (extra <= 0) return;
     return Promise.all(keys.slice(0, extra).map(function (k) { return cache.delete(k); }));
+  });
+}
+
+// Network first; on failure, the cached copy. Query strings are ignored for
+// the cache lookup so /?t=… and /svg/?t=… work offline.
+function networkFirst(req) {
+  return fetch(req).then(function (res) {
+    if (res.ok && res.type === 'basic') {
+      var copy = res.clone();
+      var url = new URL(req.url);
+      url.search = '';
+      caches.open(SHELL_CACHE).then(function (cache) { cache.put(url.href, copy); });
+    }
+    return res;
+  }).catch(function () {
+    return caches.match(req, { ignoreSearch: true }).then(function (hit) {
+      return hit || Response.error();
+    });
   });
 }

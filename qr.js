@@ -1,6 +1,6 @@
-// Shared QR -> SVG logic. Used by the main page, the /svg fallback page and
-// the service worker (via importScripts), so it must only rely on globals
-// available in both window and worker scopes.
+// Shared QR logic. Used by the generator page, the /svg page and the service
+// worker (via importScripts), so it must only rely on globals available in
+// both window and worker scopes.
 (function (root) {
   'use strict';
 
@@ -9,22 +9,29 @@
   qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
 
   var ECC_LEVELS = ['L', 'M', 'Q', 'H'];
-  var COLOR_RE = /^(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+  var SIZES = [256, 512, 1024];
+  var INKS = [
+    { name: 'Black', hex: '0B0B0C' },
+    { name: 'Blue', hex: '1E3BC8' },
+    { name: 'Red', hex: 'B8301B' },
+    { name: 'Green', hex: '0D6444' },
+  ];
 
   var DEFAULTS = {
     text: '',
-    ecc: 'M',
-    fg: '000000',
-    bg: 'ffffff',
-    margin: 4,
     size: 512,
+    ink: '0B0B0C',
+    bg: 'FFFFFF',
+    ecc: 'M',
+    margin: 4,
   };
 
-  function color(value, fallback) {
-    if (value == null || value === '') return fallback;
-    value = String(value).replace(/^#/, '');
-    if (value === 'transparent' || value === 'none') return 'none';
-    return COLOR_RE.test(value) ? value : fallback;
+  // Accepts "rgb" or "rrggbb", with or without "#". Returns "RRGGBB" or null.
+  function hex(value) {
+    if (value == null) return null;
+    var v = String(value).replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(v)) v = v.replace(/./g, '$&$&');
+    return /^[0-9a-f]{6}$/i.test(v) ? v.toUpperCase() : null;
   }
 
   function int(value, fallback, min, max) {
@@ -33,72 +40,86 @@
     return Math.min(max, Math.max(min, n));
   }
 
-  // Build normalized options from URLSearchParams.
-  //   t      text to encode
-  //   ecc    error correction level: L, M, Q, H
-  //   fg/bg  hex colors without '#' (bg may also be "transparent")
-  //   m      quiet zone margin, in modules
-  //   s      width/height of the SVG in px
+  // Normalized options from URLSearchParams.
+  //   t    text to encode
+  //   s    width/height in px
+  //   c    ink hex without '#' ("fg" is accepted as an older alias)
+  //   bg   background hex, or "transparent"
+  //   ecc  error correction level: L, M, Q, H
+  //   m    quiet zone, in modules
   function parse(params) {
     var ecc = String(params.get('ecc') || DEFAULTS.ecc).toUpperCase();
+    var bg = params.get('bg');
     return {
       text: params.get('t') || DEFAULTS.text,
-      ecc: ECC_LEVELS.indexOf(ecc) === -1 ? DEFAULTS.ecc : ecc,
-      fg: color(params.get('fg'), DEFAULTS.fg),
-      bg: color(params.get('bg'), DEFAULTS.bg),
-      margin: int(params.get('m'), DEFAULTS.margin, 0, 64),
       size: int(params.get('s'), DEFAULTS.size, 16, 8192),
+      ink: hex(params.get('c')) || hex(params.get('fg')) || DEFAULTS.ink,
+      bg: bg === 'transparent' || bg === 'none' ? 'none' : hex(bg) || DEFAULTS.bg,
+      ecc: ECC_LEVELS.indexOf(ecc) === -1 ? DEFAULTS.ecc : ecc,
+      margin: int(params.get('m'), DEFAULTS.margin, 0, 64),
     };
   }
 
-  // Canonical query string for a set of options; only non-default values are
-  // kept, so equivalent URLs share a cache entry.
+  // Canonical query string; only non-default values beyond s and t are kept,
+  // so equivalent URLs share a cache entry.
   function query(opts) {
-    var params = new URLSearchParams();
-    params.set('t', opts.text);
-    if (opts.ecc !== DEFAULTS.ecc) params.set('ecc', opts.ecc);
-    if (opts.fg !== DEFAULTS.fg) params.set('fg', opts.fg);
-    if (opts.bg !== DEFAULTS.bg) params.set('bg', opts.bg === 'none' ? 'transparent' : opts.bg);
-    if (opts.margin !== DEFAULTS.margin) params.set('m', String(opts.margin));
-    if (opts.size !== DEFAULTS.size) params.set('s', String(opts.size));
-    return params.toString();
+    var q = 's=' + opts.size + '&t=' + encodeURIComponent(opts.text);
+    if (opts.ink !== DEFAULTS.ink) q += '&c=' + opts.ink;
+    if (opts.bg !== DEFAULTS.bg) q += '&bg=' + (opts.bg === 'none' ? 'transparent' : opts.bg);
+    if (opts.ecc !== DEFAULTS.ecc) q += '&ecc=' + opts.ecc;
+    if (opts.margin !== DEFAULTS.margin) q += '&m=' + opts.margin;
+    return q;
   }
 
-  function fill(c) {
-    return c === 'none' ? 'none' : '#' + c;
+  // Encode text. Throws if it is too long to fit in a QR code.
+  // Returns { count, path(margin) } where path is one SVG path of all dark
+  // modules, offset by `margin` modules.
+  function encode(text, ecc) {
+    var qr = qrcode(0, ecc || DEFAULTS.ecc);
+    qr.addData(text, 'Byte');
+    qr.make();
+    var count = qr.getModuleCount();
+
+    return {
+      count: count,
+      path: function (margin) {
+        var d = '';
+        for (var r = 0; r < count; r++) {
+          for (var c = 0; c < count; c++) {
+            if (!qr.isDark(r, c)) continue;
+            var start = c;
+            while (c + 1 < count && qr.isDark(r, c + 1)) c++;
+            var len = c - start + 1;
+            d += 'M' + (start + margin) + ' ' + (r + margin) + 'h' + len + 'v1h-' + len + 'z';
+          }
+        }
+        return d;
+      },
+    };
   }
 
-  // Throws if the text is too long to fit in a QR code.
+  // Standalone SVG file: explicit size, background rect, one ink path.
   function svg(opts) {
     opts = Object.assign({}, DEFAULTS, opts);
-    var qr = qrcode(0, opts.ecc);
-    qr.addData(opts.text, 'Byte');
-    qr.make();
-
-    var count = qr.getModuleCount();
-    var m = opts.margin;
-    var dim = count + m * 2;
-    var path = '';
-
-    // One path, merging horizontal runs of dark modules.
-    for (var r = 0; r < count; r++) {
-      for (var c = 0; c < count; c++) {
-        if (!qr.isDark(r, c)) continue;
-        var start = c;
-        while (c + 1 < count && qr.isDark(r, c + 1)) c++;
-        var len = c - start + 1;
-        path += 'M' + (start + m) + ' ' + (r + m) + 'h' + len + 'v1h-' + len + 'z';
-      }
-    }
-
+    var code = encode(opts.text, opts.ecc);
+    var dim = code.count + opts.margin * 2;
     return (
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + opts.size + '" height="' + opts.size + '"' +
       ' viewBox="0 0 ' + dim + ' ' + dim + '" shape-rendering="crispEdges">' +
-      (opts.bg === 'none' ? '' : '<rect width="100%" height="100%" fill="' + fill(opts.bg) + '"/>') +
-      '<path d="' + path + '" fill="' + fill(opts.fg) + '"/>' +
+      (opts.bg === 'none' ? '' : '<rect width="100%" height="100%" fill="#' + opts.bg + '"/>') +
+      '<path d="' + code.path(opts.margin) + '" fill="#' + opts.ink + '"/>' +
       '</svg>'
     );
   }
 
-  root.QR = { DEFAULTS: DEFAULTS, parse: parse, query: query, svg: svg };
+  root.QR = {
+    DEFAULTS: DEFAULTS,
+    SIZES: SIZES,
+    INKS: INKS,
+    hex: hex,
+    parse: parse,
+    query: query,
+    encode: encode,
+    svg: svg,
+  };
 })(typeof self !== 'undefined' ? self : this);

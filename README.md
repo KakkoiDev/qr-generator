@@ -1,39 +1,46 @@
 # QR Generator
 
-A static QR code generator for GitHub Pages. It has no build step and no backend.
+A static QR code generator, live at **[qr.kakkoi.dev](https://qr.kakkoi.dev)**. It has no build step and no backend. Everything is generated in the browser.
 
-- **`/`**: type text and the QR code updates on every keystroke. The text is stored in the URL (`?t=...`), so the page can be shared. **Download SVG** saves the current code.
-- **`/svg/?t=...`**: shows only the QR code as an SVG image.
+- **`/`**: type text and the QR code updates as you type. You can choose the size (256 / 512 / 1024 px) and the ink colour (presets or any custom colour), download the SVG, copy the share link or iframe code, or use the native share sheet on mobile. The state is mirrored in the page URL (`/?t=…&s=…&c=…`), so a reload or a shared link keeps it.
+- **`/svg/?t=…`**: a page that shows only the QR code, centred and sized to the viewport. It's meant to be opened directly or embedded in an iframe. With no text, it shows an empty state.
 
-## How `/svg` works without a server
-
-GitHub Pages can only serve static files. So a service worker (`sw.js`) catches requests to `svg` and `svg/`. It builds the SVG in the browser and returns a real `image/svg+xml` response. It also saves the result in Cache Storage, so the same URL loads instantly and works offline. You can then use the URL directly, for example `<img src=".../svg/?t=hello">`.
-
-On a first visit, before the service worker is installed, `svg/index.html` draws the same SVG as a page. It then installs the worker and reloads once. After that, the URL returns the raw SVG.
-
-> Because the service worker runs in the browser, the raw-SVG response only happens in a browser that has already visited the site. Tools like `curl` or link-preview bots will get the HTML fallback.
-
-### Embedding
-
-- **Iframe**: put the `/svg` link straight into an iframe on any web page. The main page's *Share & embed* section has a snippet you can copy.
-- **`<img>`, Markdown, email**: use **Download SVG** and host the file yourself. These places don't run the service worker, so the `/svg` link won't load there.
-
-### `/svg` parameters
+## `/svg` parameters
 
 | Param | Meaning | Default |
 |-------|---------|---------|
-| `t`   | Text to encode (UTF-8) | `""` |
-| `ecc` | Error correction level: `L`, `M`, `Q`, `H` | `M` |
-| `fg`  | Foreground hex color, without `#` | `000000` |
-| `bg`  | Background hex color, or `transparent` | `ffffff` |
-| `m`   | Quiet-zone margin, in modules | `4` |
-| `s`   | Width/height in px | `512` |
+| `t`   | Text to encode (UTF-8) | (empty state) |
+| `s`   | Intended size in px (used for iframes and image responses) | `512` |
+| `c`   | Ink hex, without `#` (`fg` is still accepted) | `0B0B0C` |
+| `bg`  | Background hex, or `transparent` | `FFFFFF` |
+| `ecc` | Error correction: `L`, `M`, `Q`, `H` | `M` |
+| `m`   | Quiet zone, in modules | `4` |
 
-Example: `svg/?t=hello&fg=1a237e&bg=transparent&ecc=H`
+Example: `/svg/?s=512&t=hello&c=1E3BC8`
+
+## Embedding
+
+- **Iframe**: paste the `/svg` link into an iframe on any page, and set `s=` to match its size. The generator has a ready-to-copy snippet.
+- **`<img>`, Markdown, email, link previews**: use **Download SVG** and host the file yourself. Those places don't run JavaScript, so the link won't render there.
+
+## Service worker
+
+`sw.js` caches the app so it works offline. On this site it also answers non-page requests to `/svg/?…`, such as `<img src>` or `fetch()`, with a real `image/svg+xml` response, and caches each one per URL.
+
+## Files
+
+| File | Role |
+|------|------|
+| `index.html`, `app.js`, `style.css` | Generator page |
+| `tokens.css` | Design tokens (colours, type, spacing) |
+| `qr.js` | Shared encoding, URL params and SVG output (page, `/svg`, service worker) |
+| `svg/index.html` | `/svg` route |
+| `sw.js` | Service worker |
+| `vendor/qrcode.js` | [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT) |
 
 ## Deploy
 
-Settings → Pages → Deploy from branch → `master`, `/ (root)`. Custom domain: `qr.kakkoi.dev` (see `CNAME`).
+GitHub Pages: Settings → Pages → Deploy from branch → `master`, `/ (root)`. The custom domain is `qr.kakkoi.dev` (see `CNAME`).
 
 ## Local dev
 
@@ -42,7 +49,3 @@ python3 -m http.server 8000
 ```
 
 Service workers need `localhost` or HTTPS.
-
-## Credits
-
-QR encoding: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT), vendored in `vendor/qrcode.js`.
