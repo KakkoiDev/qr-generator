@@ -28,7 +28,7 @@ Example: `svg/?t=hello&fg=1a237e&bg=transparent&ecc=H`
 
 ## Deploy
 
-Settings → Pages → Deploy from branch → choose the branch and `/ (root)`.
+Settings → Pages → Deploy from branch → `master`, `/ (root)`. Custom domain: `qr.kakkoi.dev` (see `CNAME`).
 
 ## Local dev
 
