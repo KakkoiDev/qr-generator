@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Generator</title>
+  <meta name="description" content="Type text, get a QR code. Shareable URL and SVG download.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>QR Generator</h1>
+
+    <div id="qr" class="qr" role="img" aria-label="QR code"></div>
+    <p id="error" class="error" hidden></p>
+
+    <form id="form" class="controls" autocomplete="off">
+      <label for="text" class="sr-only">Text or URL to encode</label>
+      <input id="text" name="t" type="text" placeholder="Type text or a URL…" autofocus spellcheck="false">
+      <button id="download" type="button">Download SVG</button>
+    </form>
+
+    <p class="links">
+      <a id="svg-link" href="svg/" target="_blank" rel="noopener">Open SVG URL</a>
+    </p>
+  </main>
+
+  <script src="vendor/qrcode.js"></script>
+  <script src="qr.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

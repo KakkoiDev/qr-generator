@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR SVG</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #fff; }
+    body { display: grid; place-items: center; font: 14px system-ui, sans-serif; }
+    svg { max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
+  </style>
+</head>
+<body>
+  <!--
+    Fallback for the first visit, before the service worker is installed.
+    Once installed, the service worker answers this URL with a real
+    image/svg+xml response and this page is never loaded again.
+  -->
+  <script src="../vendor/qrcode.js"></script>
+  <script src="../qr.js"></script>
+  <script>
+    (function () {
+      var opts = QR.parse(new URLSearchParams(location.search));
+      try {
+        document.body.innerHTML = QR.svg(opts);
+      } catch (err) {
+        document.body.textContent = 'Cannot encode: text is too long for a QR code.';
+      }
+
+      if (!('serviceWorker' in navigator) || navigator.serviceWorker.controller) return;
+      // Install the worker, then reload once so this URL becomes a raw SVG.
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        try {
+          if (sessionStorage.getItem('qr-sw-reloaded')) return;
+          sessionStorage.setItem('qr-sw-reloaded', '1');
+        } catch (e) { return; }
+        location.reload();
+      });
+      navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(function () {});
+    })();
+  </script>
+</body>
+</html>
