@@ -13,6 +13,11 @@ On a first visit, before the service worker is installed, `svg/index.html` draws
 
 > Because the service worker runs in the browser, the raw-SVG response only happens in a browser that has already visited the site. Tools like `curl` or link-preview bots will get the HTML fallback.
 
+### Embedding
+
+- **Iframe**: put the `/svg` link straight into an iframe on any web page. The main page's *Share & embed* section has a snippet you can copy.
+- **`<img>`, Markdown, email**: use **Download SVG** and host the file yourself. These places don't run the service worker, so the `/svg` link won't load there.
+
 ### `/svg` parameters
 
 | Param | Meaning | Default |

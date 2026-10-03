@@ -20,9 +20,38 @@
       <button id="download" type="button">Download SVG</button>
     </form>
 
-    <p class="links">
-      <a id="svg-link" href="svg/" target="_blank" rel="noopener">Open SVG URL</a>
-    </p>
+    <section class="embed" aria-labelledby="embed-title">
+      <h2 id="embed-title">Share &amp; embed</h2>
+
+      <div class="field">
+        <div class="field-head">
+          <label for="svg-url">SVG link</label>
+          <a id="svg-link" href="svg/" target="_blank" rel="noopener">Open</a>
+        </div>
+        <div class="copy-row">
+          <input id="svg-url" type="text" readonly>
+          <button type="button" class="secondary" data-copy="svg-url">Copy</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-head">
+          <label for="iframe-code">Iframe</label>
+        </div>
+        <div class="copy-row">
+          <textarea id="iframe-code" rows="3" readonly></textarea>
+          <button type="button" class="secondary" data-copy="iframe-code">Copy</button>
+        </div>
+        <p class="hint">Use the link directly in an <code>&lt;iframe&gt;</code> on any web page. Change <code>s=</code> in the link to match the iframe's size.</p>
+      </div>
+
+      <p class="hint">
+        <strong>Need an <code>&lt;img&gt;</code>?</strong>
+        Use <em>Download SVG</em> and host the file yourself. The SVG link is generated in the
+        browser, so it works when opened directly or inside an iframe, but not as an
+        <code>&lt;img src&gt;</code> on other sites, in Markdown/READMEs, emails or link previews.
+      </p>
+    </section>
   </main>
 
   <script src="vendor/qrcode.js"></script>
